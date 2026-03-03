@@ -1,7 +1,7 @@
 import Foundation
 
 /// Represents the result of analyzing extracted content.
-public struct AnalysisResult: Sendable {
+public struct AnalysisResult: Sendable, Codable {
     /// The extracted content that was analyzed.
     public let extractedContent: ExtractedContent
 

@@ -7,11 +7,14 @@ import FoundationNetworking
 public struct NetworkClient: @unchecked Sendable {
 
     private let userAgent: String
+    private let timeout: TimeInterval
 
     public init(
-        userAgent: String = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+        userAgent: String = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+        timeout: TimeInterval = 30
     ) {
         self.userAgent = userAgent
+        self.timeout = timeout
     }
 
     /// Fetches the HTML content at the given URL string.
@@ -22,7 +25,7 @@ public struct NetworkClient: @unchecked Sendable {
 
         var request = URLRequest(url: url)
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
-        request.timeoutInterval = 30
+        request.timeoutInterval = timeout
 
         let (data, response): (Data, URLResponse)
         do {

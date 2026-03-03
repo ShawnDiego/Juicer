@@ -1,7 +1,7 @@
 import Foundation
 
 /// Represents content extracted from a source.
-public struct ExtractedContent: Sendable {
+public struct ExtractedContent: Sendable, Codable {
     /// The type of content that was extracted.
     public let contentType: ContentType
 

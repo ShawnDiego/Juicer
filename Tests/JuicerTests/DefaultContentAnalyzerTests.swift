@@ -94,4 +94,60 @@ final class DefaultContentAnalyzerTests: XCTestCase {
         XCTAssertTrue(labels.contains("xiaohongshuLink"))
         XCTAssertTrue(labels.contains("has-author"))
     }
+
+    // MARK: - Hashtag Extraction
+
+    func testExtractHashtags() {
+        let hashtags = analyzer.extractHashtags(from: "今天去了#北京 和 #上海旅行 真开心 #travel")
+        XCTAssertTrue(hashtags.contains("北京"))
+        XCTAssertTrue(hashtags.contains("上海旅行"))
+        XCTAssertTrue(hashtags.contains("travel"))
+    }
+
+    func testExtractHashtagsEmpty() {
+        let hashtags = analyzer.extractHashtags(from: "no hashtags here")
+        XCTAssertTrue(hashtags.isEmpty)
+    }
+
+    func testExtractHashtagsEmptyString() {
+        let hashtags = analyzer.extractHashtags(from: "")
+        XCTAssertTrue(hashtags.isEmpty)
+    }
+
+    // MARK: - Mention Extraction
+
+    func testExtractMentions() {
+        let mentions = analyzer.extractMentions(from: "感谢 @张三 和 @李四 的帮助 @john_doe")
+        XCTAssertTrue(mentions.contains("张三"))
+        XCTAssertTrue(mentions.contains("李四"))
+        XCTAssertTrue(mentions.contains("john_doe"))
+    }
+
+    func testExtractMentionsEmpty() {
+        let mentions = analyzer.extractMentions(from: "no mentions here")
+        XCTAssertTrue(mentions.isEmpty)
+    }
+
+    func testExtractMentionsEmptyString() {
+        let mentions = analyzer.extractMentions(from: "")
+        XCTAssertTrue(mentions.isEmpty)
+    }
+
+    // MARK: - Analyzer with Hashtags and Mentions
+
+    func testAnalyzeContentWithHashtagsAndMentions() async throws {
+        let content = ExtractedContent(
+            contentType: .text,
+            source: .text("#旅行日记 今天在北京 @小红薯 推荐的餐厅吃饭"),
+            title: "旅行日记",
+            textContent: "#旅行日记 今天在北京 @小红薯 推荐的餐厅吃饭"
+        )
+
+        let result = try await analyzer.analyze(content)
+
+        XCTAssertNotNil(result.metadata["hashtags"])
+        XCTAssertTrue(result.metadata["hashtags"]?.contains("旅行日记") == true)
+        XCTAssertNotNil(result.metadata["mentions"])
+        XCTAssertTrue(result.metadata["mentions"]?.contains("小红薯") == true)
+    }
 }

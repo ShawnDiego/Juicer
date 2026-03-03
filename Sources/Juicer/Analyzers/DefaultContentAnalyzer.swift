@@ -19,11 +19,19 @@ public struct DefaultContentAnalyzer: ContentAnalyzer {
         let labels = generateLabels(for: content)
         let wordCount = countWords(in: text)
         let hasMedia = !content.imageURLs.isEmpty || !content.videoURLs.isEmpty
+        let hashtags = extractHashtags(from: text)
+        let mentions = extractMentions(from: text)
 
         var metadata: [String: String] = [:]
         if hasMedia {
             metadata["imageCount"] = "\(content.imageURLs.count)"
             metadata["videoCount"] = "\(content.videoURLs.count)"
+        }
+        if !hashtags.isEmpty {
+            metadata["hashtags"] = hashtags.joined(separator: ", ")
+        }
+        if !mentions.isEmpty {
+            metadata["mentions"] = mentions.joined(separator: ", ")
         }
 
         return AnalysisResult(
@@ -137,6 +145,40 @@ public struct DefaultContentAnalyzer: ContentAnalyzer {
         let words = text.components(separatedBy: CharacterSet.whitespacesAndNewlines)
             .filter { !$0.isEmpty }
         return words.count
+    }
+
+    /// Extracts hashtags from the text (e.g., #话题, #trending).
+    func extractHashtags(from text: String) -> [String] {
+        guard !text.isEmpty else { return [] }
+        let pattern = "#[\\w\\u4e00-\\u9fff\\u3400-\\u4dbf]+"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+            return []
+        }
+        let nsRange = NSRange(text.startIndex..., in: text)
+        let matches = regex.matches(in: text, options: [], range: nsRange)
+        return matches.compactMap { match in
+            guard let range = Range(match.range, in: text) else { return nil }
+            let tag = String(text[range])
+            // Remove the leading # and return the tag content
+            return String(tag.dropFirst())
+        }
+    }
+
+    /// Extracts @mentions from the text (e.g., @username).
+    func extractMentions(from text: String) -> [String] {
+        guard !text.isEmpty else { return [] }
+        let pattern = "@[\\w\\u4e00-\\u9fff\\u3400-\\u4dbf]+"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+            return []
+        }
+        let nsRange = NSRange(text.startIndex..., in: text)
+        let matches = regex.matches(in: text, options: [], range: nsRange)
+        return matches.compactMap { match in
+            guard let range = Range(match.range, in: text) else { return nil }
+            let mention = String(text[range])
+            // Remove the leading @ and return the username
+            return String(mention.dropFirst())
+        }
     }
 
     // Common English stop words for keyword filtering
