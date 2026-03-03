@@ -11,19 +11,19 @@ public struct HTMLParser: Sendable {
     /// - `<meta property="..." content="...">`
     /// - `<meta content="..." property="...">`
     public func metaContent(from html: String, property: String) -> String? {
-        let result = extractMetaContent(from: html, property: property)
+        let result = extractMetaPropertyContent(from: html, property: property)
         return result.map { decodeHTMLEntities($0) }
     }
 
     /// Extracts the value of a `<meta>` tag's `content` attribute matching the given `name`.
     public func metaContent(from html: String, name: String) -> String? {
-        let result = extractMetaContent(from: html, name: name)
+        let result = extractMetaNameContent(from: html, name: name)
         return result.map { decodeHTMLEntities($0) }
     }
 
     /// Extracts the inner text content of the first matching HTML tag.
     public func tagContent(from html: String, tag: String) -> String? {
-        let result = extractTag(from: html, tag: tag)
+        let result = extractTagContent(from: html, tag: tag)
         return result.map { decodeHTMLEntities($0) }
     }
 
@@ -102,5 +102,73 @@ public struct HTMLParser: Sendable {
         }
 
         return result
+    }
+
+    // MARK: - Private Parsing Helpers
+
+    private func extractMetaPropertyContent(from html: String, property: String) -> String? {
+        let escapedProp = NSRegularExpression.escapedPattern(for: property)
+
+        // Match <meta property="..." content="...">
+        let pattern = "<meta[^>]+property=[\"']\(escapedProp)[\"'][^>]+content=[\"']([^\"']*)[\"']"
+        if let match = html.range(of: pattern, options: .regularExpression) {
+            let substring = html[match]
+            if let contentRange = substring.range(of: "content=[\"']", options: .regularExpression),
+               let endQuote = substring[contentRange.upperBound...].firstIndex(where: { $0 == "\"" || $0 == "'" }) {
+                return String(substring[contentRange.upperBound..<endQuote])
+            }
+        }
+
+        // Try reversed attribute order: content before property
+        let reversedPattern = "<meta[^>]+content=[\"']([^\"']*)[\"'][^>]+property=[\"']\(escapedProp)[\"']"
+        if let match = html.range(of: reversedPattern, options: .regularExpression) {
+            let substring = html[match]
+            if let contentRange = substring.range(of: "content=[\"']", options: .regularExpression),
+               let endQuote = substring[contentRange.upperBound...].firstIndex(where: { $0 == "\"" || $0 == "'" }) {
+                return String(substring[contentRange.upperBound..<endQuote])
+            }
+        }
+
+        return nil
+    }
+
+    private func extractMetaNameContent(from html: String, name: String) -> String? {
+        let escapedName = NSRegularExpression.escapedPattern(for: name)
+
+        let pattern = "<meta[^>]+name=[\"']\(escapedName)[\"'][^>]+content=[\"']([^\"']*)[\"']"
+        if let match = html.range(of: pattern, options: .regularExpression) {
+            let substring = html[match]
+            if let contentRange = substring.range(of: "content=[\"']", options: .regularExpression),
+               let endQuote = substring[contentRange.upperBound...].firstIndex(where: { $0 == "\"" || $0 == "'" }) {
+                return String(substring[contentRange.upperBound..<endQuote])
+            }
+        }
+
+        // Try reversed attribute order
+        let reversedPattern = "<meta[^>]+content=[\"']([^\"']*)[\"'][^>]+name=[\"']\(escapedName)[\"']"
+        if let match = html.range(of: reversedPattern, options: .regularExpression) {
+            let substring = html[match]
+            if let contentRange = substring.range(of: "content=[\"']", options: .regularExpression),
+               let endQuote = substring[contentRange.upperBound...].firstIndex(where: { $0 == "\"" || $0 == "'" }) {
+                return String(substring[contentRange.upperBound..<endQuote])
+            }
+        }
+
+        return nil
+    }
+
+    private func extractTagContent(from html: String, tag: String) -> String? {
+        let pattern = "<\(tag)[^>]*>([^<]*)</\(tag)>"
+        guard let match = html.range(of: pattern, options: .regularExpression) else {
+            return nil
+        }
+        let substring = html[match]
+        if let openEnd = substring.range(of: ">"),
+           let closeStart = substring.range(of: "</", options: .backwards) {
+            let content = String(substring[openEnd.upperBound..<closeStart.lowerBound])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return content.isEmpty ? nil : content
+        }
+        return nil
     }
 }

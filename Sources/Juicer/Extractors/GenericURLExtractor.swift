@@ -20,9 +20,11 @@ public struct GenericURLExtractor: ContentExtractor {
 
     public func canExtract(from source: ContentSource) -> Bool {
         guard case .url(let urlString) = source else { return false }
-        // Only handle URLs that are NOT Douyin or Xiaohongshu
+        // Only handle URLs that are NOT Douyin, Xiaohongshu, or Weibo
         guard URL(string: urlString) != nil else { return false }
-        return !linkDetector.isDouyinURL(urlString) && !linkDetector.isXiaohongshuURL(urlString)
+        return !linkDetector.isDouyinURL(urlString)
+            && !linkDetector.isXiaohongshuURL(urlString)
+            && !linkDetector.isWeiboURL(urlString)
     }
 
     public func extract(from source: ContentSource) async throws -> ExtractedContent {

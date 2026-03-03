@@ -4,6 +4,7 @@ import Foundation
 public enum ContentType: String, Sendable, Codable, CaseIterable {
     case douyinLink
     case xiaohongshuLink
+    case weiboLink
     case text
     case image
     case video

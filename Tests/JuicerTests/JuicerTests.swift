@@ -119,4 +119,49 @@ final class JuicerTests: XCTestCase {
         XCTAssertEqual(content.author, "TestUser")
         XCTAssertEqual(content.metadata["platform"], "xiaohongshu")
     }
+
+    // MARK: - Weibo Integration
+
+    func testWeiboLinkDetectionInProcess() {
+        let (type, _) = LinkDetector().detect("看看这条微博 https://weibo.com/123/abc 有趣吗")
+        XCTAssertEqual(type, .weiboLink)
+    }
+
+    func testWeiboHTMLParsing() {
+        let extractor = WeiboExtractor()
+        let html = """
+        <html>
+        <head>
+            <meta property="og:title" content="微博帖子标题">
+            <meta property="og:description" content="这是一条微博内容">
+            <meta property="og:image" content="https://img.weibo.com/photo.jpg">
+            <meta name="author" content="WeiboUser">
+        </head>
+        </html>
+        """
+
+        let content = extractor.parseWeiboHTML(html, source: .url("https://weibo.com/123/abc"), url: "https://weibo.com/123/abc")
+
+        XCTAssertEqual(content.title, "微博帖子标题")
+        XCTAssertEqual(content.textContent, "这是一条微博内容")
+        XCTAssertEqual(content.author, "WeiboUser")
+        XCTAssertEqual(content.metadata["platform"], "weibo")
+    }
+
+    // MARK: - Error Equatable
+
+    func testExtractionErrorEquatable() {
+        XCTAssertEqual(ExtractionError.unsupportedSource, ExtractionError.unsupportedSource)
+        XCTAssertEqual(ExtractionError.noContentFound, ExtractionError.noContentFound)
+        XCTAssertEqual(ExtractionError.invalidURL("test"), ExtractionError.invalidURL("test"))
+        XCTAssertEqual(ExtractionError.textTooLong(100), ExtractionError.textTooLong(100))
+        XCTAssertNotEqual(ExtractionError.invalidURL("a"), ExtractionError.invalidURL("b"))
+        XCTAssertNotEqual(ExtractionError.unsupportedSource, ExtractionError.noContentFound)
+    }
+
+    func testAnalysisErrorEquatable() {
+        XCTAssertEqual(AnalysisError.emptyContent, AnalysisError.emptyContent)
+        XCTAssertEqual(AnalysisError.analysisUnavailable("a"), AnalysisError.analysisUnavailable("a"))
+        XCTAssertNotEqual(AnalysisError.emptyContent, AnalysisError.analysisUnavailable("x"))
+    }
 }

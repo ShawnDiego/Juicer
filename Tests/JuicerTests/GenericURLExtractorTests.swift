@@ -18,6 +18,10 @@ final class GenericURLExtractorTests: XCTestCase {
         XCTAssertFalse(extractor.canExtract(from: .url("https://www.xiaohongshu.com/explore/123")))
     }
 
+    func testCannotExtractFromWeiboURL() {
+        XCTAssertFalse(extractor.canExtract(from: .url("https://weibo.com/1234567890/abc")))
+    }
+
     func testCannotExtractFromText() {
         XCTAssertFalse(extractor.canExtract(from: .text("hello")))
     }

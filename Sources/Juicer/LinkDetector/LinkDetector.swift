@@ -1,6 +1,6 @@
 import Foundation
 
-/// Detects and classifies URLs from Douyin and Xiaohongshu platforms.
+/// Detects and classifies URLs from Douyin, Xiaohongshu, and Weibo platforms.
 public struct LinkDetector: Sendable {
 
     /// Known Douyin (抖音) host patterns.
@@ -18,6 +18,15 @@ public struct LinkDetector: Sendable {
         "xiaohongshu.com",
         "xhslink.com",
         "www.xhslink.com"
+    ]
+
+    /// Known Weibo (微博) host patterns.
+    static let weiboHosts: Set<String> = [
+        "weibo.com",
+        "www.weibo.com",
+        "m.weibo.cn",
+        "weibo.cn",
+        "www.weibo.cn"
     ]
 
     public init() {}
@@ -58,6 +67,26 @@ public struct LinkDetector: Sendable {
         return Self.xiaohongshuHosts.contains(host)
     }
 
+    /// Checks if a URL string matches a known Weibo host.
+    public func isWeiboURL(_ urlString: String) -> Bool {
+        guard let url = URL(string: urlString),
+              let host = url.host?.lowercased() else {
+            return false
+        }
+        return Self.weiboHosts.contains(host)
+    }
+
+    /// Checks if a URL string is a valid HTTP/HTTPS URL.
+    public func isGenericURL(_ urlString: String) -> Bool {
+        guard let url = URL(string: urlString),
+              let scheme = url.scheme?.lowercased(),
+              (scheme == "http" || scheme == "https"),
+              url.host != nil else {
+            return false
+        }
+        return true
+    }
+
     // MARK: - Private
 
     /// Extracts all URL strings from the input text.
@@ -83,6 +112,8 @@ public struct LinkDetector: Sendable {
             return .douyinLink
         } else if isXiaohongshuURL(urlString) {
             return .xiaohongshuLink
+        } else if isWeiboURL(urlString) {
+            return .weiboLink
         }
         return nil
     }

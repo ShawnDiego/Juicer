@@ -1,8 +1,8 @@
 import Foundation
 
-/// Extracts content from Douyin (抖音) links.
-public struct DouyinExtractor: ContentExtractor {
-    public let supportedType: ContentType = .douyinLink
+/// Extracts content from Weibo (微博) links.
+public struct WeiboExtractor: ContentExtractor {
+    public let supportedType: ContentType = .weiboLink
 
     private let networkClient: NetworkClient
     private let htmlParser: HTMLParser
@@ -16,7 +16,7 @@ public struct DouyinExtractor: ContentExtractor {
 
     public func canExtract(from source: ContentSource) -> Bool {
         guard case .url(let urlString) = source else { return false }
-        return linkDetector.isDouyinURL(urlString)
+        return linkDetector.isWeiboURL(urlString)
     }
 
     public func extract(from source: ContentSource) async throws -> ExtractedContent {
@@ -29,12 +29,12 @@ public struct DouyinExtractor: ContentExtractor {
         }
 
         let html = try await networkClient.fetchHTML(from: urlString)
-        return parseDouyinHTML(html, source: source, url: urlString)
+        return parseWeiboHTML(html, source: source, url: urlString)
     }
 
     // MARK: - Parsing
 
-    func parseDouyinHTML(_ html: String, source: ContentSource, url: String) -> ExtractedContent {
+    func parseWeiboHTML(_ html: String, source: ContentSource, url: String) -> ExtractedContent {
         let title = htmlParser.metaContent(from: html, property: "og:title")
             ?? htmlParser.tagContent(from: html, tag: "title")
         let description = htmlParser.metaContent(from: html, property: "og:description")
@@ -45,29 +45,23 @@ public struct DouyinExtractor: ContentExtractor {
         let videoURL = htmlParser.metaContent(from: html, property: "og:video")
             ?? htmlParser.metaContent(from: html, property: "og:video:url")
 
+        var imageURLs: [String] = imageURL.map { [$0] } ?? []
+
+        // Weibo posts often have multiple images
+        let additionalImages = htmlParser.allMetaContents(from: html, property: "og:image")
+        if additionalImages.count > imageURLs.count {
+            imageURLs = additionalImages
+        }
+
         return ExtractedContent(
-            contentType: .douyinLink,
+            contentType: .weiboLink,
             source: source,
             title: title,
             textContent: description,
-            imageURLs: imageURL.map { [$0] } ?? [],
+            imageURLs: imageURLs,
             videoURLs: videoURL.map { [$0] } ?? [],
             author: author,
-            metadata: ["originalURL": url, "platform": "douyin"]
+            metadata: ["originalURL": url, "platform": "weibo"]
         )
     }
-}
-
-// MARK: - HTML Parsing Helpers (shared, kept for backward compatibility)
-
-func extractMetaContent(from html: String, property: String) -> String? {
-    return HTMLParser().metaContent(from: html, property: property)
-}
-
-func extractMetaContent(from html: String, name: String) -> String? {
-    return HTMLParser().metaContent(from: html, name: name)
-}
-
-func extractTag(from html: String, tag: String) -> String? {
-    return HTMLParser().tagContent(from: html, tag: tag)
 }

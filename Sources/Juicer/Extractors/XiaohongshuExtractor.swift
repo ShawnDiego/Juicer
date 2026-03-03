@@ -5,14 +5,18 @@ public struct XiaohongshuExtractor: ContentExtractor {
     public let supportedType: ContentType = .xiaohongshuLink
 
     private let networkClient: NetworkClient
+    private let htmlParser: HTMLParser
+    private let linkDetector: LinkDetector
 
     public init(networkClient: NetworkClient = NetworkClient()) {
         self.networkClient = networkClient
+        self.htmlParser = HTMLParser()
+        self.linkDetector = LinkDetector()
     }
 
     public func canExtract(from source: ContentSource) -> Bool {
         guard case .url(let urlString) = source else { return false }
-        return LinkDetector().isXiaohongshuURL(urlString)
+        return linkDetector.isXiaohongshuURL(urlString)
     }
 
     public func extract(from source: ContentSource) async throws -> ExtractedContent {
@@ -31,19 +35,19 @@ public struct XiaohongshuExtractor: ContentExtractor {
     // MARK: - Parsing
 
     func parseXiaohongshuHTML(_ html: String, source: ContentSource, url: String) -> ExtractedContent {
-        let title = extractMetaContent(from: html, property: "og:title")
-            ?? extractTag(from: html, tag: "title")
-        let description = extractMetaContent(from: html, property: "og:description")
-            ?? extractMetaContent(from: html, name: "description")
-        let author = extractMetaContent(from: html, property: "og:author")
-            ?? extractMetaContent(from: html, name: "author")
-        let imageURL = extractMetaContent(from: html, property: "og:image")
-        let videoURL = extractMetaContent(from: html, property: "og:video")
+        let title = htmlParser.metaContent(from: html, property: "og:title")
+            ?? htmlParser.tagContent(from: html, tag: "title")
+        let description = htmlParser.metaContent(from: html, property: "og:description")
+            ?? htmlParser.metaContent(from: html, name: "description")
+        let author = htmlParser.metaContent(from: html, property: "og:author")
+            ?? htmlParser.metaContent(from: html, name: "author")
+        let imageURL = htmlParser.metaContent(from: html, property: "og:image")
+        let videoURL = htmlParser.metaContent(from: html, property: "og:video")
 
         var imageURLs: [String] = imageURL.map { [$0] } ?? []
 
         // Extract additional images from og:image tags (Xiaohongshu posts often have multiple images)
-        let additionalImages = extractAllMetaContents(from: html, property: "og:image")
+        let additionalImages = htmlParser.allMetaContents(from: html, property: "og:image")
         if additionalImages.count > imageURLs.count {
             imageURLs = additionalImages
         }
@@ -58,28 +62,5 @@ public struct XiaohongshuExtractor: ContentExtractor {
             author: author,
             metadata: ["originalURL": url, "platform": "xiaohongshu"]
         )
-    }
-
-    /// Extracts all values for a given meta property (for multiple images, etc.).
-    private func extractAllMetaContents(from html: String, property: String) -> [String] {
-        var results: [String] = []
-        let escapedProp = NSRegularExpression.escapedPattern(for: property)
-        let pattern = "<meta[^>]+property=[\"']\(escapedProp)[\"'][^>]+content=[\"']([^\"']*)[\"']"
-
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
-            return results
-        }
-
-        let nsRange = NSRange(html.startIndex..., in: html)
-        let matches = regex.matches(in: html, options: [], range: nsRange)
-
-        for match in matches {
-            if match.numberOfRanges > 1,
-               let range = Range(match.range(at: 1), in: html) {
-                results.append(String(html[range]))
-            }
-        }
-
-        return results
     }
 }

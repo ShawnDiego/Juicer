@@ -51,4 +51,58 @@ final class JuicerConfigurationTests: XCTestCase {
         let juicer = Juicer(configuration: config)
         XCTAssertFalse(juicer.configuration.cachingEnabled)
     }
+
+    // MARK: - maxTextLength Enforcement
+
+    func testMaxTextLengthEnforced() async {
+        let config = JuicerConfiguration(maxTextLength: 10)
+        let juicer = Juicer(configuration: config)
+
+        do {
+            _ = try await juicer.process(input: "This text is definitely longer than ten characters")
+            XCTFail("Expected textTooLong error")
+        } catch {
+            XCTAssertEqual(error as? ExtractionError, .textTooLong(10))
+        }
+    }
+
+    func testMaxTextLengthAllowsShortText() async throws {
+        let config = JuicerConfiguration(maxTextLength: 100)
+        let juicer = Juicer(configuration: config)
+
+        let result = try await juicer.process(input: "Short text")
+        XCTAssertEqual(result.extractedContent.contentType, .text)
+    }
+
+    func testMaxTextLengthZeroMeansUnlimited() async throws {
+        let config = JuicerConfiguration(maxTextLength: 0)
+        let juicer = Juicer(configuration: config)
+
+        let longText = String(repeating: "a", count: 100000)
+        let result = try await juicer.process(input: longText)
+        XCTAssertEqual(result.extractedContent.contentType, .text)
+    }
+
+    func testMaxTextLengthEnforcedOnExtract() async {
+        let config = JuicerConfiguration(maxTextLength: 5)
+        let juicer = Juicer(configuration: config)
+
+        do {
+            _ = try await juicer.extract(input: "This is too long")
+            XCTFail("Expected textTooLong error")
+        } catch {
+            XCTAssertEqual(error as? ExtractionError, .textTooLong(5))
+        }
+    }
+
+    // MARK: - maxKeywords Enforcement
+
+    func testMaxKeywordsRespected() async throws {
+        let config = JuicerConfiguration(maxKeywords: 3)
+        let juicer = Juicer(configuration: config)
+
+        let text = "swift programming language swift development swift tools golang python rust java"
+        let result = try await juicer.process(input: text)
+        XCTAssertLessThanOrEqual(result.keywords.count, 3)
+    }
 }

@@ -15,6 +15,12 @@ import Foundation
 /// // Process copied text containing a link
 /// let result = try await juicer.process(input: "Check this out https://www.xiaohongshu.com/explore/123")
 ///
+/// // Process a Weibo link
+/// let result = try await juicer.process(input: "https://weibo.com/1234567890/abcdef")
+///
+/// // Process a generic URL (any HTTP/HTTPS link embedded in text)
+/// let result = try await juicer.process(input: "Look at this https://example.com/article")
+///
 /// // Process raw text
 /// let result = try await juicer.process(input: "Hello, this is some text to analyze.")
 ///
@@ -59,12 +65,13 @@ public struct Juicer: Sendable {
         self.extractors = [
             DouyinExtractor(networkClient: networkClient),
             XiaohongshuExtractor(networkClient: networkClient),
+            WeiboExtractor(networkClient: networkClient),
             GenericURLExtractor(networkClient: networkClient),
             TextExtractor(),
             ImageExtractor(),
             VideoExtractor()
         ]
-        self.analyzer = analyzer ?? DefaultContentAnalyzer()
+        self.analyzer = analyzer ?? DefaultContentAnalyzer(maxKeywords: configuration.maxKeywords)
         self.cache = configuration.cachingEnabled ? ContentCache(maxSize: configuration.maxCacheSize) : nil
         self.clipboardReader = ClipboardReader()
     }
@@ -87,12 +94,15 @@ public struct Juicer: Sendable {
 
     /// Processes a string input (URL, shared text, or plain text) and returns an analysis result.
     ///
-    /// The input is first analyzed to detect any Douyin or Xiaohongshu links.
-    /// If a link is found, it is fetched and parsed. Otherwise, the text is analyzed directly.
+    /// The input is first analyzed to detect any Douyin, Xiaohongshu, or Weibo links.
+    /// If a platform link is found, it is fetched and parsed. If a generic URL is found,
+    /// it is fetched for Open Graph metadata. Otherwise, the text is analyzed directly.
     ///
     /// - Parameter input: The string to process.
     /// - Returns: An `AnalysisResult` containing the extracted and analyzed content.
+    /// - Throws: `ExtractionError.textTooLong` if input exceeds `maxTextLength` (when configured).
     public func process(input: String) async throws -> AnalysisResult {
+        try validateTextLength(input)
         let source = resolveSource(from: input)
         return try await process(source: source)
     }
@@ -131,7 +141,9 @@ public struct Juicer: Sendable {
     ///
     /// - Parameter input: The string to extract from.
     /// - Returns: The `ExtractedContent`.
+    /// - Throws: `ExtractionError.textTooLong` if input exceeds `maxTextLength` (when configured).
     public func extract(input: String) async throws -> ExtractedContent {
+        try validateTextLength(input)
         let source = resolveSource(from: input)
         return try await extract(source: source)
     }
@@ -146,18 +158,36 @@ public struct Juicer: Sendable {
     /// - Parameter inputs: The array of string inputs to process.
     /// - Returns: An array of optional `AnalysisResult`, one per input.
     public func processAll(inputs: [String]) async -> [AnalysisResult?] {
+        let maxConcurrency = configuration.maxConcurrency
+
         return await withTaskGroup(of: (Int, AnalysisResult?).self) { group in
-            for (index, input) in inputs.enumerated() {
+            var nextIndex = 0
+            var results = [AnalysisResult?](repeating: nil, count: inputs.count)
+
+            // Seed the group with initial tasks up to maxConcurrency
+            while nextIndex < min(maxConcurrency, inputs.count) {
+                let index = nextIndex
                 group.addTask {
-                    let result = try? await self.process(input: input)
+                    let result = try? await self.process(input: inputs[index])
                     return (index, result)
+                }
+                nextIndex += 1
+            }
+
+            // As each task completes, add the next one
+            for await (index, result) in group {
+                results[index] = result
+
+                if nextIndex < inputs.count {
+                    let index = nextIndex
+                    group.addTask {
+                        let result = try? await self.process(input: inputs[index])
+                        return (index, result)
+                    }
+                    nextIndex += 1
                 }
             }
 
-            var results = [AnalysisResult?](repeating: nil, count: inputs.count)
-            for await (index, result) in group {
-                results[index] = result
-            }
             return results
         }
     }
@@ -165,22 +195,41 @@ public struct Juicer: Sendable {
     /// Processes multiple content sources concurrently and returns results for each.
     ///
     /// Failed sources are represented as `nil` in the returned array.
+    /// The `maxConcurrency` from the configuration controls parallelism.
     ///
     /// - Parameter sources: The array of `ContentSource` to process.
     /// - Returns: An array of optional `AnalysisResult`, one per source.
     public func processAll(sources: [ContentSource]) async -> [AnalysisResult?] {
+        let maxConcurrency = configuration.maxConcurrency
+
         return await withTaskGroup(of: (Int, AnalysisResult?).self) { group in
-            for (index, source) in sources.enumerated() {
+            var nextIndex = 0
+            var results = [AnalysisResult?](repeating: nil, count: sources.count)
+
+            // Seed the group with initial tasks up to maxConcurrency
+            while nextIndex < min(maxConcurrency, sources.count) {
+                let index = nextIndex
                 group.addTask {
-                    let result = try? await self.process(source: source)
+                    let result = try? await self.process(source: sources[index])
                     return (index, result)
+                }
+                nextIndex += 1
+            }
+
+            // As each task completes, add the next one
+            for await (index, result) in group {
+                results[index] = result
+
+                if nextIndex < sources.count {
+                    let index = nextIndex
+                    group.addTask {
+                        let result = try? await self.process(source: sources[index])
+                        return (index, result)
+                    }
+                    nextIndex += 1
                 }
             }
 
-            var results = [AnalysisResult?](repeating: nil, count: sources.count)
-            for await (index, result) in group {
-                results[index] = result
-            }
             return results
         }
     }
@@ -215,12 +264,22 @@ public struct Juicer: Sendable {
     private func resolveSource(from input: String) -> ContentSource {
         let (contentType, cleanedInput) = linkDetector.detect(input)
         switch contentType {
-        case .douyinLink, .xiaohongshuLink:
+        case .douyinLink, .xiaohongshuLink, .weiboLink:
             return .url(cleanedInput)
         case .text, .image, .video:
-            // LinkDetector.detect() only returns .douyinLink, .xiaohongshuLink, or .text for
-            // string input. The .image/.video cases are included for exhaustive switching.
+            // If no platform link was detected, check for generic URLs
+            let urls = linkDetector.extractURLs(from: input)
+            if let firstURL = urls.first, linkDetector.isGenericURL(firstURL) {
+                return .url(firstURL)
+            }
             return .text(cleanedInput)
+        }
+    }
+
+    private func validateTextLength(_ input: String) throws {
+        let maxLength = configuration.maxTextLength
+        guard maxLength == 0 || input.count <= maxLength else {
+            throw ExtractionError.textTooLong(maxLength)
         }
     }
 

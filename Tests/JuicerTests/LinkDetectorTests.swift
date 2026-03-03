@@ -87,4 +87,44 @@ final class LinkDetectorTests: XCTestCase {
     func testClassifyUnknownURL() {
         XCTAssertNil(detector.classifyURL("https://example.com"))
     }
+
+    // MARK: - Weibo URL Detection
+
+    func testDetectWeiboURL() {
+        XCTAssertTrue(detector.isWeiboURL("https://weibo.com/1234567890/abc"))
+        XCTAssertTrue(detector.isWeiboURL("https://www.weibo.com/1234567890/abc"))
+        XCTAssertTrue(detector.isWeiboURL("https://m.weibo.cn/detail/123456"))
+        XCTAssertTrue(detector.isWeiboURL("https://weibo.cn/detail/123456"))
+    }
+
+    func testDetectWeiboURLNegative() {
+        XCTAssertFalse(detector.isWeiboURL("https://www.google.com"))
+        XCTAssertFalse(detector.isWeiboURL("https://v.douyin.com/abc123"))
+        XCTAssertFalse(detector.isWeiboURL("not a url"))
+    }
+
+    func testDetectWeiboLinkInText() {
+        let input = "看看这条微博 https://weibo.com/1234567890/abc 太有意思了！"
+        let (type, url) = detector.detect(input)
+        XCTAssertEqual(type, .weiboLink)
+        XCTAssertTrue(url.contains("weibo.com"))
+    }
+
+    func testClassifyWeiboURL() {
+        XCTAssertEqual(detector.classifyURL("https://weibo.com/123/abc"), .weiboLink)
+        XCTAssertEqual(detector.classifyURL("https://m.weibo.cn/detail/123"), .weiboLink)
+    }
+
+    // MARK: - Generic URL Detection
+
+    func testIsGenericURL() {
+        XCTAssertTrue(detector.isGenericURL("https://example.com/article"))
+        XCTAssertTrue(detector.isGenericURL("http://blog.example.org/post"))
+    }
+
+    func testIsGenericURLNegative() {
+        XCTAssertFalse(detector.isGenericURL("not a url"))
+        XCTAssertFalse(detector.isGenericURL("ftp://files.example.com/data"))
+        XCTAssertFalse(detector.isGenericURL(""))
+    }
 }

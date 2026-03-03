@@ -31,18 +31,12 @@ public struct NetworkClient: @unchecked Sendable {
         do {
             (data, response) = try await URLSession.shared.data(for: request)
         } catch {
-            throw ExtractionError.networkError(error)
+            throw ExtractionError.networkError(error.localizedDescription)
         }
 
         if let httpResponse = response as? HTTPURLResponse,
            !(200...299).contains(httpResponse.statusCode) {
-            throw ExtractionError.networkError(
-                NSError(
-                    domain: "HTTPError",
-                    code: httpResponse.statusCode,
-                    userInfo: [NSLocalizedDescriptionKey: "HTTP \(httpResponse.statusCode)"]
-                )
-            )
+            throw ExtractionError.networkError("HTTP \(httpResponse.statusCode)")
         }
 
         guard let html = String(data: data, encoding: .utf8) else {

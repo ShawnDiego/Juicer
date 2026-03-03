@@ -7,7 +7,7 @@ public protocol ContentAnalyzer: Sendable {
 }
 
 /// Errors that can occur during content analysis.
-public enum AnalysisError: Error, LocalizedError {
+public enum AnalysisError: Error, LocalizedError, Equatable {
     case emptyContent
     case analysisUnavailable(String)
 

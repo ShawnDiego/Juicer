@@ -3,7 +3,11 @@ import Foundation
 /// A default content analyzer that performs basic text analysis locally.
 public struct DefaultContentAnalyzer: ContentAnalyzer {
 
-    public init() {}
+    private let maxKeywords: Int
+
+    public init(maxKeywords: Int = 10) {
+        self.maxKeywords = max(1, maxKeywords)
+    }
 
     public func analyze(_ content: ExtractedContent) async throws -> AnalysisResult {
         let text = content.textContent ?? content.title ?? ""
@@ -89,7 +93,7 @@ public struct DefaultContentAnalyzer: ContentAnalyzer {
         // Return top keywords sorted by frequency
         return frequency
             .sorted { $0.value > $1.value }
-            .prefix(10)
+            .prefix(maxKeywords)
             .map { $0.key }
     }
 

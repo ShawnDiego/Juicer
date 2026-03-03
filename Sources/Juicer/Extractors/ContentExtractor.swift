@@ -13,25 +13,28 @@ public protocol ContentExtractor: Sendable {
 }
 
 /// Errors that can occur during content extraction.
-public enum ExtractionError: Error, LocalizedError {
+public enum ExtractionError: Error, LocalizedError, Equatable {
     case unsupportedSource
-    case networkError(Error)
+    case networkError(String)
     case parsingError(String)
     case invalidURL(String)
     case noContentFound
+    case textTooLong(Int)
 
     public var errorDescription: String? {
         switch self {
         case .unsupportedSource:
             return "The content source is not supported by this extractor."
-        case .networkError(let error):
-            return "Network error: \(error.localizedDescription)"
+        case .networkError(let message):
+            return "Network error: \(message)"
         case .parsingError(let message):
             return "Failed to parse content: \(message)"
         case .invalidURL(let url):
             return "Invalid URL: \(url)"
         case .noContentFound:
             return "No extractable content was found."
+        case .textTooLong(let maxLength):
+            return "Text exceeds maximum length of \(maxLength) characters."
         }
     }
 }
