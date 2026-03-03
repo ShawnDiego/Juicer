@@ -1,0 +1,51 @@
+import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+
+/// A simple HTTP client for fetching web content.
+public struct NetworkClient: @unchecked Sendable {
+
+    private let userAgent: String
+
+    public init(
+        userAgent: String = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+    ) {
+        self.userAgent = userAgent
+    }
+
+    /// Fetches the HTML content at the given URL string.
+    public func fetchHTML(from urlString: String) async throws -> String {
+        guard let url = URL(string: urlString) else {
+            throw ExtractionError.invalidURL(urlString)
+        }
+
+        var request = URLRequest(url: url)
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+        request.timeoutInterval = 30
+
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            throw ExtractionError.networkError(error)
+        }
+
+        if let httpResponse = response as? HTTPURLResponse,
+           !(200...299).contains(httpResponse.statusCode) {
+            throw ExtractionError.networkError(
+                NSError(
+                    domain: "HTTPError",
+                    code: httpResponse.statusCode,
+                    userInfo: [NSLocalizedDescriptionKey: "HTTP \(httpResponse.statusCode)"]
+                )
+            )
+        }
+
+        guard let html = String(data: data, encoding: .utf8) else {
+            throw ExtractionError.parsingError("Unable to decode response as UTF-8")
+        }
+
+        return html
+    }
+}
