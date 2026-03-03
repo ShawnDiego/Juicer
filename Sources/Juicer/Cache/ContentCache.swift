@@ -98,11 +98,13 @@ public final class ContentCache: @unchecked Sendable {
         case .url(let urlString):
             return "url:\(urlString)"
         case .text(let text):
-            return "text:\(text.hashValue)"
+            // Use a stable prefix-based key to avoid hash instability across runs
+            let truncated = text.count > 200 ? String(text.prefix(200)) : text
+            return "text:\(truncated.count):\(truncated)"
         case .imageData(let data, let filename):
-            return "image:\(data.hashValue):\(filename ?? "unknown")"
+            return "image:\(data.count):\(filename ?? "unknown")"
         case .videoData(let data, let filename):
-            return "video:\(data.hashValue):\(filename ?? "unknown")"
+            return "video:\(data.count):\(filename ?? "unknown")"
         case .fileURL(let url):
             return "file:\(url.path)"
         }

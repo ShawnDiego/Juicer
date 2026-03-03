@@ -146,8 +146,8 @@ final class DefaultContentAnalyzerTests: XCTestCase {
         let result = try await analyzer.analyze(content)
 
         XCTAssertNotNil(result.metadata["hashtags"])
-        XCTAssertTrue(result.metadata["hashtags"]?.contains("旅行日记") == true)
+        XCTAssertTrue(result.metadata["hashtags"]?.contains("旅行日记") ?? false)
         XCTAssertNotNil(result.metadata["mentions"])
-        XCTAssertTrue(result.metadata["mentions"]?.contains("小红薯") == true)
+        XCTAssertTrue(result.metadata["mentions"]?.contains("小红薯") ?? false)
     }
 }

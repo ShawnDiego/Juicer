@@ -84,7 +84,7 @@ public struct ClipboardReader: Sendable {
 
         // Check for URL
         if let urlString = pasteboard.string(forType: .URL),
-           let _ = URL(string: urlString) {
+           URL(string: urlString) != nil {
             return .url(urlString)
         }
 
