@@ -70,9 +70,9 @@ public struct Juicer: Sendable {
         switch contentType {
         case .douyinLink, .xiaohongshuLink:
             source = .url(cleanedInput)
-        case .text:
-            source = .text(cleanedInput)
-        case .image, .video:
+        case .text, .image, .video:
+            // LinkDetector.detect() only returns .douyinLink, .xiaohongshuLink, or .text for
+            // string input. The .image/.video cases are included for exhaustive switching.
             source = .text(cleanedInput)
         }
 
@@ -110,6 +110,8 @@ public struct Juicer: Sendable {
         case .douyinLink, .xiaohongshuLink:
             source = .url(cleanedInput)
         case .text, .image, .video:
+            // LinkDetector.detect() only returns .douyinLink, .xiaohongshuLink, or .text for
+            // string input. The .image/.video cases are included for exhaustive switching.
             source = .text(cleanedInput)
         }
 
