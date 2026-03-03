@@ -55,4 +55,37 @@ public struct ExtractedContent: Sendable, Codable {
         self.createdAt = createdAt
         self.extractedAt = extractedAt
     }
+
+    // MARK: - Convenience
+
+    /// The primary download URL for the content.
+    ///
+    /// For video content, this returns the first video URL.
+    /// For image content, this returns the first image URL.
+    /// For link content with videos, the video URL takes precedence.
+    /// Returns `nil` if no media URLs are available.
+    public var downloadURL: String? {
+        if !videoURLs.isEmpty {
+            return videoURLs.first
+        }
+        if !imageURLs.isEmpty {
+            return imageURLs.first
+        }
+        return nil
+    }
+
+    /// The resolved URL after following redirects, if available.
+    ///
+    /// This is particularly useful for short URLs (e.g., Douyin's `v.douyin.com/xxx`)
+    /// that redirect to the actual content page. Stored in `metadata["resolvedURL"]`.
+    public var resolvedURL: String? {
+        return metadata["resolvedURL"]
+    }
+
+    /// The platform-specific content ID, if available.
+    ///
+    /// For example, Douyin video IDs are stored in `metadata["videoId"]`.
+    public var contentId: String? {
+        return metadata["videoId"] ?? metadata["noteId"] ?? metadata["contentId"]
+    }
 }

@@ -1,6 +1,16 @@
 import Foundation
 
 /// Extracts content from Douyin (抖音) links.
+///
+/// Supports:
+/// - Short share links: `https://v.douyin.com/iRNxxx/`
+/// - Video pages: `https://www.douyin.com/video/7234567890123456789`
+/// - Note pages: `https://www.douyin.com/note/7234567890123456789`
+/// - User pages: `https://www.douyin.com/user/MS4wLjABAAAAxxx`
+/// - Shared text: `"7.29 PJu:/ 复制打开抖音，看看【xxx的作品】 https://v.douyin.com/iRNxxx/"`
+///
+/// The extractor follows HTTP redirects to resolve short URLs, extracts
+/// the video/note ID, and parses Open Graph metadata from the page HTML.
 public struct DouyinExtractor: ContentExtractor {
     public let supportedType: ContentType = .douyinLink
 
@@ -28,13 +38,14 @@ public struct DouyinExtractor: ContentExtractor {
             throw ExtractionError.invalidURL(urlString)
         }
 
-        let html = try await networkClient.fetchHTML(from: urlString)
-        return parseDouyinHTML(html, source: source, url: urlString)
+        // Use redirect-following fetch to resolve short URLs (v.douyin.com/xxx → douyin.com/video/xxx)
+        let (html, resolvedURL) = try await networkClient.fetchHTMLWithResolvedURL(from: urlString)
+        return parseDouyinHTML(html, source: source, url: urlString, resolvedURL: resolvedURL)
     }
 
     // MARK: - Parsing
 
-    func parseDouyinHTML(_ html: String, source: ContentSource, url: String) -> ExtractedContent {
+    func parseDouyinHTML(_ html: String, source: ContentSource, url: String, resolvedURL: String? = nil) -> ExtractedContent {
         let title = htmlParser.metaContent(from: html, property: "og:title")
             ?? htmlParser.tagContent(from: html, tag: "title")
         let description = htmlParser.metaContent(from: html, property: "og:description")
@@ -45,6 +56,31 @@ public struct DouyinExtractor: ContentExtractor {
         let videoURL = htmlParser.metaContent(from: html, property: "og:video")
             ?? htmlParser.metaContent(from: html, property: "og:video:url")
 
+        var metadata: [String: String] = [
+            "originalURL": url,
+            "platform": "douyin"
+        ]
+
+        // Store the resolved URL (after redirect) if different from the original
+        let finalURL = resolvedURL ?? url
+        if finalURL != url {
+            metadata["resolvedURL"] = finalURL
+        }
+
+        // Extract video ID or note ID from the resolved URL
+        if let videoId = Self.extractVideoId(from: finalURL) {
+            metadata["videoId"] = videoId
+        } else if let noteId = Self.extractNoteId(from: finalURL) {
+            metadata["noteId"] = noteId
+        }
+
+        // Detect content subtype (video vs. note/image post)
+        if finalURL.contains("/note/") {
+            metadata["contentSubtype"] = "note"
+        } else if finalURL.contains("/video/") {
+            metadata["contentSubtype"] = "video"
+        }
+
         return ExtractedContent(
             contentType: .douyinLink,
             source: source,
@@ -53,8 +89,47 @@ public struct DouyinExtractor: ContentExtractor {
             imageURLs: imageURL.map { [$0] } ?? [],
             videoURLs: videoURL.map { [$0] } ?? [],
             author: author,
-            metadata: ["originalURL": url, "platform": "douyin"]
+            metadata: metadata
         )
+    }
+
+    // MARK: - URL Parsing
+
+    /// Extracts the video ID from a Douyin URL.
+    ///
+    /// Matches patterns like:
+    /// - `douyin.com/video/7234567890123456789`
+    /// - `douyin.com/video/7234567890123456789?...`
+    static func extractVideoId(from urlString: String) -> String? {
+        let pattern = "/video/(\\d+)"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+            return nil
+        }
+        let nsRange = NSRange(urlString.startIndex..., in: urlString)
+        guard let match = regex.firstMatch(in: urlString, options: [], range: nsRange),
+              match.numberOfRanges > 1,
+              let range = Range(match.range(at: 1), in: urlString) else {
+            return nil
+        }
+        return String(urlString[range])
+    }
+
+    /// Extracts the note ID from a Douyin note URL.
+    ///
+    /// Matches patterns like:
+    /// - `douyin.com/note/7234567890123456789`
+    static func extractNoteId(from urlString: String) -> String? {
+        let pattern = "/note/(\\d+)"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+            return nil
+        }
+        let nsRange = NSRange(urlString.startIndex..., in: urlString)
+        guard let match = regex.firstMatch(in: urlString, options: [], range: nsRange),
+              match.numberOfRanges > 1,
+              let range = Range(match.range(at: 1), in: urlString) else {
+            return nil
+        }
+        return String(urlString[range])
     }
 }
 
