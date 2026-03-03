@@ -1,20 +1,21 @@
 # Juicer
 
-A Swift package for extracting and analyzing content from **Douyin (抖音)** links, **Xiaohongshu (小红书)** links, **generic web URLs**, plain text, images, and videos. Designed for **iOS** and **macOS**, with processing available locally or via custom cloud backends.
+A Swift package for extracting and analyzing content from **Douyin (抖音)**, **Xiaohongshu (小红书)**, **Weibo (微博)** links, **generic web URLs**, plain text, images, and videos. Designed for **iOS** and **macOS**, with processing available locally or via custom cloud backends.
 
 ## Features
 
-- 🔗 **Link Detection** — Automatically detects Douyin and Xiaohongshu URLs from shared text
-- 🌐 **Generic URL Extraction** — Fetches and parses Open Graph metadata from any web URL
+- 🔗 **Link Detection** — Automatically detects Douyin, Xiaohongshu, and Weibo URLs from shared text
+- 🌐 **Generic URL Extraction** — Fetches and parses Open Graph metadata from any web URL (auto-detected in text)
 - 📝 **Text Extraction** — Analyzes plain text, detects embedded URLs, generates summaries
 - 🖼️ **Image Processing** — Reads image metadata and detects formats (JPEG, PNG, GIF, BMP, WebP)
 - 🎬 **Video Processing** — Reads video metadata and detects formats (MP4, AVI, FLV, WebM)
 - 🧠 **Content Analysis** — Keyword extraction, language detection, hashtag/mention parsing, word count, summary generation
 - 📋 **Clipboard Integration** — Read content directly from the system clipboard (iOS/macOS)
-- ⚡ **Batch Processing** — Process multiple inputs concurrently with configurable parallelism
+- ⚡ **Batch Processing** — Process multiple inputs concurrently with enforced `maxConcurrency`
 - 💾 **Caching** — In-memory LRU cache to avoid redundant extractions
 - 📦 **Codable Models** — All models are `Codable` for easy serialization and persistence
-- ⚙️ **Configurable** — Customize timeouts, cache size, concurrency, and more
+- ⚙️ **Configurable** — Customize timeouts, cache size, concurrency, max text length, max keywords, and more
+- 🛡️ **Input Validation** — Enforces `maxTextLength` to reject oversized inputs
 - 📱 **Cross-platform** — Runs on iOS 16+ and macOS 13+
 
 ## Architecture
@@ -22,7 +23,7 @@ A Swift package for extracting and analyzing content from **Douyin (抖音)** li
 ```
 Sources/Juicer/
 ├── Models/
-│   ├── ContentType.swift          # Content type enum
+│   ├── ContentType.swift          # Content type enum (douyin, xiaohongshu, weibo, text, image, video)
 │   ├── ContentSource.swift        # Input source enum (Codable)
 │   ├── ExtractedContent.swift     # Extracted content model (Codable)
 │   ├── AnalysisResult.swift       # Analysis result model (Codable)
@@ -30,22 +31,23 @@ Sources/Juicer/
 ├── LinkDetector/
 │   └── LinkDetector.swift         # URL detection and classification
 ├── Extractors/
-│   ├── ContentExtractor.swift     # Extractor protocol
+│   ├── ContentExtractor.swift     # Extractor protocol + ExtractionError (Equatable)
 │   ├── DouyinExtractor.swift      # Douyin HTML parser
 │   ├── XiaohongshuExtractor.swift # Xiaohongshu HTML parser
+│   ├── WeiboExtractor.swift       # Weibo HTML parser
 │   ├── GenericURLExtractor.swift  # Generic Open Graph URL extractor
 │   ├── TextExtractor.swift        # Plain text processor
 │   ├── ImageExtractor.swift       # Image metadata extractor
 │   └── VideoExtractor.swift       # Video metadata extractor
 ├── Analyzers/
-│   ├── ContentAnalyzer.swift      # Analyzer protocol
+│   ├── ContentAnalyzer.swift      # Analyzer protocol + AnalysisError (Equatable)
 │   └── DefaultContentAnalyzer.swift # Local text/hashtag/mention analysis
 ├── Parsing/
-│   └── HTMLParser.swift           # HTML parsing + entity decoding
+│   └── HTMLParser.swift           # Self-contained HTML parsing + entity decoding
 ├── Networking/
-│   └── NetworkClient.swift        # HTTP client
+│   └── NetworkClient.swift        # HTTP client with configurable timeout
 ├── Cache/
-│   └── ContentCache.swift         # In-memory LRU cache
+│   └── ContentCache.swift         # Thread-safe in-memory LRU cache
 ├── Clipboard/
 │   └── ClipboardReader.swift      # iOS/macOS clipboard reader
 └── Juicer.swift                   # Main entry point
@@ -69,8 +71,12 @@ print(result.extractedContent.title)
 let result = try await juicer.process(input: "https://www.xiaohongshu.com/explore/abc123")
 print(result.extractedContent.author)
 
-// Process any web URL (Open Graph metadata)
-let result = try await juicer.process(input: "https://medium.com/some-article")
+// Process a Weibo link
+let result = try await juicer.process(input: "看看这条微博 https://weibo.com/123/abc 太有意思了")
+print(result.extractedContent.title)
+
+// Process any web URL (auto-detected from text, fetches Open Graph metadata)
+let result = try await juicer.process(input: "Look at this https://example.com/article")
 print(result.extractedContent.title)
 
 // Process plain text
@@ -101,6 +107,7 @@ print(result.metadata["mentions"])  // "好友推荐"
 let inputs = ["Hello world", "https://v.douyin.com/abc", "Another text"]
 let results = await juicer.processAll(inputs: inputs)
 // results: [AnalysisResult?] — nil for failed inputs, preserves order
+// Concurrency is throttled by maxConcurrency in the configuration
 ```
 
 ### Clipboard Integration (iOS/macOS)
@@ -140,11 +147,12 @@ let decoded = try JSONDecoder().decode(AnalysisResult.self, from: data)
 
 ```swift
 let config = JuicerConfiguration(
-    maxConcurrency: 8,       // Max parallel batch tasks
+    maxConcurrency: 8,       // Max parallel batch tasks (enforced)
     networkTimeout: 60,      // HTTP timeout in seconds
     cachingEnabled: true,    // Enable in-memory caching
     maxCacheSize: 200,       // Max cache entries
-    maxKeywords: 20          // Max keywords to extract
+    maxTextLength: 50000,    // Max input text length (0 = unlimited)
+    maxKeywords: 20          // Max keywords to extract (wired to analyzer)
 )
 
 let juicer = Juicer(configuration: config)
@@ -161,6 +169,23 @@ struct MyCloudAnalyzer: ContentAnalyzer {
 }
 
 let juicer = Juicer(analyzer: MyCloudAnalyzer())
+```
+
+### Error Handling
+
+```swift
+do {
+    let result = try await juicer.process(input: veryLongText)
+} catch ExtractionError.textTooLong(let maxLength) {
+    print("Input exceeds \(maxLength) characters")
+} catch ExtractionError.noContentFound {
+    print("No content to process")
+} catch ExtractionError.networkError(let message) {
+    print("Network failed: \(message)")
+}
+
+// Errors are Equatable for easy testing
+XCTAssertEqual(error as? ExtractionError, .textTooLong(100))
 ```
 
 ## Integration

@@ -175,14 +175,14 @@ public struct Juicer: Sendable {
             }
 
             // As each task completes, add the next one
-            for await (index, result) in group {
-                results[index] = result
+            for await (completedIndex, result) in group {
+                results[completedIndex] = result
 
                 if nextIndex < inputs.count {
-                    let index = nextIndex
+                    let currentIndex = nextIndex
                     group.addTask {
-                        let result = try? await self.process(input: inputs[index])
-                        return (index, result)
+                        let result = try? await self.process(input: inputs[currentIndex])
+                        return (currentIndex, result)
                     }
                     nextIndex += 1
                 }
@@ -217,14 +217,14 @@ public struct Juicer: Sendable {
             }
 
             // As each task completes, add the next one
-            for await (index, result) in group {
-                results[index] = result
+            for await (completedIndex, result) in group {
+                results[completedIndex] = result
 
                 if nextIndex < sources.count {
-                    let index = nextIndex
+                    let currentIndex = nextIndex
                     group.addTask {
-                        let result = try? await self.process(source: sources[index])
-                        return (index, result)
+                        let result = try? await self.process(source: sources[currentIndex])
+                        return (currentIndex, result)
                     }
                     nextIndex += 1
                 }
