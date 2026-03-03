@@ -5,6 +5,7 @@ A Swift package for extracting and analyzing content from **Douyin (抖音)**, *
 ## Features
 
 - 🔗 **Link Detection** — Automatically detects Douyin, Xiaohongshu, and Weibo URLs from shared text
+- 🎯 **Douyin Download Support** — Resolves short URLs, extracts video/note IDs, provides direct download URLs
 - 🌐 **Generic URL Extraction** — Fetches and parses Open Graph metadata from any web URL (auto-detected in text)
 - 📝 **Text Extraction** — Analyzes plain text, detects embedded URLs, generates summaries
 - 🖼️ **Image Processing** — Reads image metadata and detects formats (JPEG, PNG, GIF, BMP, WebP)
@@ -92,6 +93,40 @@ print(result.extractedContent.metadata["imageFormat"]) // "JPEG"
 let result = try await juicer.process(source: .videoData(videoData, filename: "clip.mp4"))
 print(result.extractedContent.metadata["videoFormat"]) // "MP4"
 ```
+
+### Douyin Link Recognition & Download
+
+Juicer fully supports Douyin (抖音) link recognition and content extraction:
+
+```swift
+// Recognize Douyin link from share text (automatically detects the URL)
+let shareText = "7.29 PJu:/ 复制打开抖音，看看【xxx的作品】 https://v.douyin.com/iRN2abc/"
+let result = try await juicer.process(input: shareText)
+
+// Access extracted content
+print(result.extractedContent.title)        // Video title
+print(result.extractedContent.author)       // Creator name
+print(result.extractedContent.textContent)  // Video description
+
+// Get the download URL (video URL from og:video, or image URL)
+print(result.extractedContent.downloadURL)  // Direct video/image URL
+
+// Get the resolved URL (short link → actual page URL)
+print(result.extractedContent.resolvedURL)  // e.g., "https://www.douyin.com/video/723..."
+
+// Get the video/note ID
+print(result.extractedContent.contentId)    // e.g., "7234567890123456789"
+
+// Check content subtype (video vs. image note)
+print(result.extractedContent.metadata["contentSubtype"])  // "video" or "note"
+```
+
+**Supported Douyin URL formats:**
+- Short share links: `https://v.douyin.com/iRNxxx/`
+- Video pages: `https://www.douyin.com/video/7234567890123456789`
+- Note pages: `https://www.douyin.com/note/7234567890123456789`
+- iesdouyin links: `https://www.iesdouyin.com/share/video/123`
+
 
 ### Hashtag & Mention Extraction
 

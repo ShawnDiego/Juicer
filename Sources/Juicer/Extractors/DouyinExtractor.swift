@@ -95,18 +95,17 @@ public struct DouyinExtractor: ContentExtractor {
 
     // MARK: - URL Parsing
 
+    private static let videoIdRegex = try! NSRegularExpression(pattern: "/video/(\\d+)", options: [])
+    private static let noteIdRegex = try! NSRegularExpression(pattern: "/note/(\\d+)", options: [])
+
     /// Extracts the video ID from a Douyin URL.
     ///
     /// Matches patterns like:
     /// - `douyin.com/video/7234567890123456789`
     /// - `douyin.com/video/7234567890123456789?...`
     static func extractVideoId(from urlString: String) -> String? {
-        let pattern = "/video/(\\d+)"
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
-            return nil
-        }
         let nsRange = NSRange(urlString.startIndex..., in: urlString)
-        guard let match = regex.firstMatch(in: urlString, options: [], range: nsRange),
+        guard let match = videoIdRegex.firstMatch(in: urlString, options: [], range: nsRange),
               match.numberOfRanges > 1,
               let range = Range(match.range(at: 1), in: urlString) else {
             return nil
@@ -119,12 +118,8 @@ public struct DouyinExtractor: ContentExtractor {
     /// Matches patterns like:
     /// - `douyin.com/note/7234567890123456789`
     static func extractNoteId(from urlString: String) -> String? {
-        let pattern = "/note/(\\d+)"
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
-            return nil
-        }
         let nsRange = NSRange(urlString.startIndex..., in: urlString)
-        guard let match = regex.firstMatch(in: urlString, options: [], range: nsRange),
+        guard let match = noteIdRegex.firstMatch(in: urlString, options: [], range: nsRange),
               match.numberOfRanges > 1,
               let range = Range(match.range(at: 1), in: urlString) else {
             return nil
